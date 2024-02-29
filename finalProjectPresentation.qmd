@@ -1,0 +1,1274 @@
+---
+title: "2022 State Deer Project"
+author: Nathan Lord
+date: 2023-12-1
+format:
+  html: 
+    code-fold: TRUE
+server: shiny
+toc: true
+toc-title: Sections 
+editor: visual
+theme: cerulean
+message: FALSE
+warning: FALSE
+---
+
+```{r}
+suppressPackageStartupMessages({
+library(tidyverse)
+library(ggplot2)
+library(plotly) # For interactive part
+library(ggrepel) # For overlapping of label/text
+library(readxl)
+library(rmarkdown)
+library(shiny)
+})
+```
+
+# Introduction
+
+How does whitetail deer harvest between states compare to the anecdotal and subjective opinions about the states hunting quality.
+
+The summation of anecdotal opinions about states themselves can be somewhat subjective do to who you watch and what you read. Often times you'll read in magazines about this years top ten or even five deer states to move to, hunt, or plan a trip for the future. From year to year and by company the states and or providences (for Canada) on this list do not vary much. This is because there is only so many areas to choose from and often the practices in those regions change very little from hunter consensus and wildlife management by both the government and landowners. There is no statewide tracking system that accounts for the age and size, both body and antler, for all the deer harvested so there is very little numerical data to let hunters know what states are doing it right when it comes to whitetail and wildlife management. The best way to understand the differences is to hear from someone who does a lot of hunting and conservation between states because of the lack of data. Opinions vary on what is ideal habitat and herd makeup in terms of hunting and conservation. Some people thinking that high harvest numbers constitute a healthy herd while the new shift is towards herd age structure and makeup. Progressing deer to the next age class to reach their "potential" as described by bone and muscle maturity is the new practice that groups like the National Deer Association preach. This can take bucks up to five years to reach which can lower deer harvest and in turn reduce resources for other "new" deer.
+
+One thing that is often brought up in discussion of what states are the best to hunt that can also help describe the age class and health of deer is the Boone and Crockett Club. For people not familiar it may seem like a club that is more for trophy hunting than conservation. While it may have started as such as its main focus is on the larger antlered deer harvested each year, antlers are often an indicator of good health, habitat quality, and genetics. For the states in this discussion, Wisconsin ranks as number one on the Boone and Crockett list and Iowa number three. Michigan is often swapping positions outside the top ten but is at number fourteen.
+
+To learn more about the Boone and Crockett Club follow the link. <https://www.boone-crockett.org/boone-and-crocketts-top-whitetail-states>\
+The Missouri State Deer lab and other universities have done new and exciting research to help find out all about deer health. To read more about the research behind the discussion about deer health above follow this link. <https://www.msudeer.msstate.edu/nutrition-and-genetics.php>
+
+# Data
+
+## Michigan
+
+The Michigan deer harvest data can be found on the website below. The data was available to export as a .CSV <https://www.mdnr-elicense.com/HarvestReportSummary>
+
+```{r, echo=TRUE}
+# For reading the Michigan deer data
+# https://www.mdnr-elicense.com/HarvestReportSummary 
+mi_deer <- read.csv("DeerHarvestSummaryReport.csv")
+
+
+# Removes the commas from the values, before on values under 1,000 were working
+# mi_deer$Total <- as.numeric(gsub(",", "", mi_deer$Total))
+# mi_deer$Antlered <- as.numeric(gsub(",", "", mi_deer$Antlered))
+# mi_deer$Antlerless <- as.numeric(gsub(",", "", mi_deer$Antlerless))
+
+# do a function example for the code above 
+rccn <- function(data_frame, columns) {
+  for (col_name in columns) {
+    data_frame[[col_name]] <- as.numeric(gsub(",", "", data_frame[[col_name]]))
+  }
+  return(data_frame)
+}
+
+# Run the function
+mi_deer <- rccn(mi_deer, c("Total", "Antlered", "Antlerless"))
+
+
+
+
+
+# For upper peninsula only
+upper_peninsula_counties <- c("Alger", "Baraga", "Chippewa", "Delta", "Dickinson", 
+                              "Gogebic", "Houghton", "Iron", "Keweenaw", "Luce", 
+                              "Mackinac", "Marquette", "Menominee", "Ontonagon", "Schoolcraft")
+
+# Filter the data
+deer_upper_peninsula <- mi_deer[grepl(paste(upper_peninsula_counties, collapse = "|"), mi_deer$County), ]
+
+
+# http://www.usa.com/rank/michigan-state--land-area--county-rank.htm
+# Add county size to the dataset
+# List of sizes corresponding to each county
+# Size is in sq miles
+sizes <- c(1808.40, 1558.42, 1311.22, 1171.36, 1171.09, 1166.15, 1101.85, 1044.08, 1021.57, 1009.10,
+           962.57, 915.07, 899.08, 898.26, 867.66, 846.95, 835.71, 825.23, 813.20, 803.13,
+           800.11, 761.40, 749.55, 721.17, 715.26, 706.23, 705.96, 705.40, 701.67, 674.58,
+           658.72, 643.01, 636.98, 612.08, 598.13, 575.17, 572.68, 571.86, 571.30, 568.46,
+           567.75, 567.37, 566.41, 566.39, 565.73, 565.25, 565.00, 564.73, 564.31, 563.49,
+           563.47, 563.15, 562.79, 561.66, 559.86, 556.28, 556.12, 555.07, 553.09, 549.39,
+           549.10, 546.66, 542.15, 540.11, 530.67, 519.64, 516.25, 514.97, 512.07, 501.78,
+           500.59, 499.25, 495.07, 490.06, 479.22, 475.70, 467.49, 464.33, 442.30, 416.34,
+           363.19, 347.17, 319.70)
+
+# Create a named vector with County as names
+sizes_vector <- setNames(sizes, c("Marquette", "Chippewa", "Ontonagon", "Schoolcraft", "Delta",
+                                  "Iron", "Gogebic", "Menominee", "Mackinac", "Houghton",
+                                  "Sanilac", "Alger", "Luce", "Baraga", "Oakland", "Kent",
+                                  "Huron", "Allegan", "Newaygo", "Tuscola", "Saginaw",
+                                  "Dickinson", "Lenawee", "St. Clair", "Cheboygan",
+                                  "Calhoun", "Washtenaw", "Montcalm", "Jackson", "Alcona",
+                                  "Presque Isle", "Lapeer", "Genesee", "Wayne", "Van Buren",
+                                  "Hillsdale", "Eaton", "Isabella", "Alpena", "Ionia",
+                                  "Gratiot", "Berrien", "Lake", "Clinton", "Osceola", "Oscoda",
+                                  "Livingston", "Wexford", "Missaukee", "Clare", "Ogemaw",
+                                  "Ottawa", "Kalamazoo", "Kalkaska", "Crawford", "Ingham",
+                                  "Mecosta", "Barry", "Monroe", "Iosco", "Montmorency", "Manistee",
+                                  "Keweenaw", "Shiawassee", "Roscommon", "Midland", "Otsego",
+                                  "Oceana", "Branch", "Gladwin", "St. Joseph", "Muskegon",
+                                  "Mason", "Cass", "Macomb", "Antrim", "Emmet", "Grand Traverse",
+                                  "Bay", "Charlevoix", "Arenac", "Leelanau", "Benzie"))
+
+# Add the "Size" column to the deer data frame
+mi_deer$Size <- sizes_vector[mi_deer$County]
+
+
+# Add a new column "State" with the value "Mi" to mi_deer using mutate
+mi_deer <- mi_deer |> mutate(State = "MI")
+
+
+# Calculate the ratio of Total to Size
+# Same thing as mutate just using base R
+mi_deer$Ratio <- mi_deer$Total / mi_deer$Size
+
+```
+
+## Wisconsin
+
+I inquired to the Wisconsin Wildlife Department to get their data from the 2022 season. Jeffery Pritzl from the department responded with an excel sheet containing all their deer harvest data for that season. The website I initially stumbled upon containing the current 2023 live harvest was on the link below. <https://dnr.wisconsin.gov/topic/WildlifeHabitat/harvest/deerharvest>
+
+The excel sheet was much more complicated than the csv file that was available through the Michigan DNR. It had multiple sheets and contained over 70 columns on teh sheet I was interested in. Thinking ahead about combining the data I decided it would be best to take a small chunk from the excel file that matches the type of data in the Michigan csv file. I was able to look into the excel file to see the columns I was interested in and extract that data when loading the file into Rstudio.
+
+```{r, echo=TRUE}
+# Wisconsin deer data reading
+file_path <- "AllKillsCty2022RegionalGrouping.xlsx"
+
+wi_deer <- read_excel(file_path, sheet = "AllKillsUnitWithTribal")
+
+
+# Select the first column and the last four columns
+wi_deer <- wi_deer[, c(1, (ncol(wi_deer) - 3):ncol(wi_deer))]
+
+
+# Specify the desired column order and names
+desired_order_and_names <- c("County", "Antlered", "Antlerless", "Unknowns", "Total")
+
+# Rename variables
+colnames(wi_deer) <- desired_order_and_names
+
+
+# Get rid of unwanted rows
+# "Apostle Islands," "Bad River," "Lac Courte Oreilles," "Lac du Flambeau," "MCCoy," "Madeline Island," "Red Cliff," 
+wi_deer <- wi_deer |>
+  filter(!(is.na(County) | County %in% c("County", "Unknown", "Apostle Islands", "Bad River", 
+                                         "Lac Courte Oreilles","Lac du Flambeau", "MCCoy", "Madeline Island", "Red Cliff")))
+
+# Convert chr columns to numeric dbl that are actually numeric
+wi_deer <- wi_deer |>
+  mutate_at(vars(Antlered, Antlerless, Unknowns, Total), as.numeric)
+
+
+# Group by the "County" column and summarize other columns by summing
+wi_deer <- wi_deer |>
+  group_by(County) |>
+  summarize(
+    Antlered = sum(Antlered, na.rm = TRUE),
+    Antlerless = sum(Antlerless, na.rm = TRUE),
+    Unknowns = sum(Unknowns, na.rm = TRUE),
+    Total = sum(Total, na.rm = TRUE)
+  )
+
+
+# http://www.usa.com/rank/wisconsin-state--land-area--county-rank.htm 
+county_sizes <- data.frame(
+  County = c("Marathon", "Bayfield", "Marinette", "Douglas", "Sawyer", "Price", "Clark", "Dane", "Grant", 
+             "Oneida", "Ashland", "Forest", "Chippewa", "Oconto", "Jackson", "Taylor", "Polk", "Rusk", 
+             "Monroe", "Shawano", "Lincoln", "Dodge", "Langlade", "Barron", "Vilas", "Dunn", "Sauk", 
+             "Burnett", "Portage", "Washburn", "Wood", "Vernon", "Juneau", "Columbia", "Iowa", "Iron", 
+             "Waupaca", "Trempealeau", "ST CROIX", "Fond Du Lac", "Rock", "Buffalo", "Adams", 
+             "Eau Claire", "Outagamie", "Lafayette", "Waushara", "Manitowoc", "Richland", "Green", 
+             "Pierce", "Crawford", "Jefferson", "Walworth", "Waukesha", "Brown", "Sheboygan", "Florence", 
+             "Door", "Marquette", "La Crosse", "Winnebago", "Washington", "Menominee", "Green Lake", 
+             "Kewaunee", "Racine", "Calumet", "Kenosha", "Milwaukee", "Ozaukee", "Pepin"),
+  Size = c(1544.98, 
+           1477.86, 
+           1399.35, 1304.14, 
+           1257.3, 1254.37, 1209.81, 
+           1197.24, 1146.85, 1112.97, 
+           1045.03, 1014.07, 1008.37, 
+           997.99, 987.72, 974.88, 913.96, 913.58, 900.77, 
+           893.06, 878.97, 875.62, 870.64, 862.71, 856.6, 850.1, 830.9, 821.85, 800.68, 
+           797.11, 793.12, 791.58, 766.92, 765.53, 762.58, 758.17, 747.71, 732.96, 722.33, 719.55, 718.14, 
+           671.63, 645.65, 637.98, 637.52, 633.59, 626.15, 
+           589.08, 586.15, 583.96, 573.75, 570.66, 556.47, 555.13, 549.57, 533.64, 511.27, 
+           488.19, 481.98, 455.60, 451.69, 434.49, 430.70, 
+           357.61, 349.44, 342.52, 332.50, 318.24, 
+           271.99, 241.40, 233.08, 231.98)
+)
+
+# Combine the size data with the existing data frame
+# Convert the "County" column in both datasets to only capital for first letter
+wi_deer$County <- tolower(wi_deer$County)
+wi_deer$County <- paste0(toupper(substring(wi_deer$County, 1, 1)), substring(wi_deer$County, 2))
+
+county_sizes$County <- tolower(county_sizes$County)
+county_sizes$County <- paste0(toupper(substring(county_sizes$County, 1, 1)), substring(county_sizes$County, 2))
+
+# Merge wi_deer with county_sizes based on the County column
+wi_deer <- merge(wi_deer, county_sizes, by = "County", all.x = TRUE)
+
+
+# Add a new column "State" with the value "WI" to wi_deer using mutate
+wi_deer <- wi_deer |> mutate(State = "WI")
+
+
+# Add the ratio for total by the size (Same thing as mutate)
+wi_deer$Ratio <- wi_deer$Total / wi_deer$Size
+
+
+# Get rid of unknown column
+wi_deer <- wi_deer |>
+  select(-Unknowns)
+
+
+```
+
+## Iowa
+
+Iowa had a webpage with the data information but no files to export the data to. I decided to manually enter the data for the 2022 Iowa season below. <https://gooutdoorsiowa.com/RealTimeHarvestReport.aspx>
+
+```{r, echo=TRUE}
+
+# Iowa deer data reading
+# https://gooutdoorsiowa.com/RealTimeHarvestReport.aspx
+
+raw_data <- "01,Adair,512,34,462,89,10,1107,7,68
+02,Adams,437,17,412,60,5,931,1,82
+03,Allamakee,1805,102,1340,246,51,3544,12,433
+04,Appanoose,1068,77,867,163,29,2204,15,341
+05,Audubon,100,4,194,12,6,316,2,51
+06,Benton,448,13,427,89,15,992,8,79
+07,Black Hawk,306,17,318,66,7,714,5,116
+08,Boone,544,33,558,103,12,1250,7,129
+09,Bremer,436,25,436,95,3,995,13,155
+10,Buchanan,425,20,392,104,6,947,4,148
+11,Buena Vista,68,3,154,11,2,238,2,38
+12,Butler,467,17,489,82,14,1069,5,124
+13,Calhoun,25,1,115,9,1,151,0,8
+14,Carroll,80,5,172,20,3,280,5,31
+15,Cass,216,9,306,29,10,570,4,42
+16,Cedar,511,19,472,87,6,1095,6,55
+17,Cerro Gordo,221,10,276,36,6,549,5,119
+18,Cherokee,203,3,273,23,4,506,3,92
+19,Chickasaw,412,21,432,91,14,970,13,140
+20,Clarke,926,60,649,124,16,1775,10,254
+21,Clay,190,9,280,24,6,509,4,52
+22,Clayton,2201,90,1469,318,59,4137,19,424
+23,Clinton,487,27,549,100,9,1172,3,86
+24,Crawford,105,5,235,20,1,366,0,63
+25,Dallas,778,37,609,140,15,1579,6,113
+26,Davis,942,75,706,190,17,1930,13,164
+27,Decatur,989,44,776,103,16,1928,8,254
+28,Delaware,809,54,561,135,19,1578,11,199
+29,Des Moines,683,25,589,104,6,1407,0,83
+30,Dickinson,106,6,183,25,6,326,7,33
+31,Dubuque,1115,71,765,233,9,2193,20,234
+32,Emmet,82,3,159,15,1,260,5,26
+33,Fayette,1026,38,696,191,27,1978,5,280
+34,Floyd,413,28,399,72,5,917,15,172
+35,Franklin,200,2,262,44,6,514,3,35
+36,Fremont,125,3,255,21,2,406,3,95
+37,Greene,175,5,258,40,7,485,2,43
+38,Grundy,43,1,99,3,1,147,0,2
+39,Guthrie,1171,63,778,193,27,2232,4,216
+40,Hamilton,133,4,225,24,5,391,1,25
+41,Hancock,150,5,172,19,1,347,1,20
+42,Hardin,386,14,411,43,11,865,1,83
+43,Harrison,365,12,405,54,4,840,8,277
+44,Henry,679,43,614,135,15,1486,2,81
+45,Howard,355,29,272,75,7,738,9,79
+46,Humboldt,69,6,163,13,3,254,1,15
+47,Ida,39,2,93,10,0,144,0,17
+48,Iowa,585,23,704,91,14,1417,4,117
+49,Jackson,1046,57,889,225,28,2245,15,351
+50,Jasper,336,14,452,68,6,876,10,153
+51,Jefferson,866,41,602,158,8,1675,0,64
+52,Johnson,865,45,667,142,17,1736,11,114
+53,Jones,888,34,704,143,11,1780,6,226
+54,Keokuk,516,21,564,76,9,1186,4,68
+55,Kossuth,112,8,250,18,2,390,2,30
+56,Lee,1070,54,873,171,13,2181,3,166
+57,Linn,921,35,794,169,22,1941,16,212
+58,Louisa,543,26,549,121,9,1248,1,68
+59,Lucas,969,43,791,144,19,1966,12,260
+60,Lyon,133,8,205,16,4,366,1,35
+61,Madison,1630,68,1008,194,36,2936,16,254
+62,Mahaska,430,19,436,82,5,972,6,117
+63,Marion,899,44,809,177,21,1950,14,241
+64,Marshall,239,6,303,40,7,595,3,73
+65,Mills,136,7,237,23,2,405,6,75
+66,Mitchell,304,17,387,51,3,762,13,124
+67,Monona,307,14,338,35,3,697,1,166
+68,Monroe,1206,68,779,167,37,2257,7,225
+69,Montgomery,231,4,270,32,1,538,0,45
+70,Muscatine,572,27,531,133,6,1269,6,93
+71,Obrien,99,2,140,11,2,254,0,31
+72,Osceola,41,1,85,5,2,134,0,3
+73,Page,224,7,302,29,1,563,4,49
+74,Palo Alto,133,2,204,17,4,360,2,15
+75,Plymouth,111,8,284,23,6,432,6,150
+76,Pocahontas,51,1,141,8,1,202,0,5
+77,Polk,564,33,344,86,10,1037,6,120
+78,Pottawattamie,279,9,380,46,5,719,13,207
+79,Poweshiek,329,15,428,56,5,833,6,69
+80,Ringgold,784,45,685,118,16,1648,4,129
+81,Sac,114,8,222,14,3,361,0,28
+82,Scott,342,21,310,50,10,733,4,22
+83,Shelby,79,1,201,17,4,302,8,40
+84,Sioux,84,8,170,19,1,282,3,49
+85,Story,191,12,291,35,2,531,4,41
+86,Tama,659,32,707,101,7,1506,7,126
+87,Taylor,860,45,739,92,10,1746,4,97
+88,Union,717,35,516,108,10,1386,2,122
+89,Van Buren,1456,84,1083,246,29,2898,3,213
+90,Wapello,722,32,548,110,22,1434,4,118
+91,Warren,1124,39,1022,203,17,2405,18,341
+92,Washington,897,61,713,179,12,1862,0,69
+93,Wayne,1080,55,773,138,20,2066,10,258
+94,Webster,360,21,496,60,8,945,7,86
+95,Winnebago,106,4,175,23,4,312,6,43
+96,Winneshiek,1335,99,815,214,39,2502,4,246
+97,Woodbury,251,15,343,38,8,655,10,201
+98,Worth,130,5,237,26,7,405,6,92
+99,Wright,107,7,243,24,4,385,2,23
+"
+
+# Remove leading and trailing whitespace
+raw_data <- trimws(raw_data)
+
+# Split the raw data into lines
+lines <- strsplit(raw_data, "\n")[[1]]
+
+# Split each line into individual elements
+elements <- strsplit(lines, ",")
+
+# Convert data to columns
+ia_deer <- data.frame(
+  County_ID = as.character(sapply(elements, `[`, 1)),
+  County = as.character(sapply(elements, `[`, 2)),
+  Antlerless = as.numeric(sapply(elements, `[`, 3)),
+  Doe_Fawn = as.numeric(sapply(elements, `[`, 4)),
+  Antlered = as.numeric(sapply(elements, `[`, 5)),
+  Button_Bucks = as.numeric(sapply(elements, `[`, 6)),
+  Shed_Antler_Bucks = as.numeric(sapply(elements, `[`, 7)),
+  Total = as.numeric(sapply(elements, `[`, 8)),
+  Fall_Turkey = as.numeric(sapply(elements, `[`, 9)),
+  Spring_Turkey = as.numeric(sapply(elements, `[`, 10))
+)
+
+
+
+# Change sub groups of antlered and antlerless and combine
+ia_deer <- ia_deer |>
+  mutate(Antlered = Antlered + Button_Bucks + Shed_Antler_Bucks) |>
+  select(-Button_Bucks, -Shed_Antler_Bucks)
+
+ia_deer <- ia_deer |>
+  mutate(Antlerless = Antlerless + Doe_Fawn) |>
+  select(-Doe_Fawn)
+
+
+# Add a new column "State" with the value "IA" to wi_deer using mutate
+ia_deer <- ia_deer |> mutate(State = "IA")
+
+# Making county sizes
+# http://www.usa.com/rank/iowa-state--land-area--county-rank.htm
+county_size <- tibble(
+  County = c("Kossuth", "Pottawattamie", "Woodbury", "Plymouth", "Clayton", 
+                  "Sioux", "Fayette", "Jasper", "Tama", "Linn", 
+                  "Benton", "Webster", "Crawford", "Harrison", "Clinton", 
+                  "Monona", "Winneshiek", "Allamakee", "Jackson", "Johnson", 
+                  "Dubuque", "Shelby", "Guthrie", "Dallas", "Lyon", 
+                  "Iowa", "Poweshiek", "Franklin", "Wright", "Butler", 
+                  "Cedar", "Keokuk", "Delaware", "Pocahontas", "Cherokee", 
+                  "Hamilton", "Jones", "Sac", "Buena Vista", "Polk", 
+                  "Obrien", "Story", "Marshall", "Boone", "Buchanan", 
+                  "Hancock", "Mahaska", "Calhoun", "Warren", "Greene", 
+                  "Carroll", "Hardin", "Adair", "Washington", "Cerro Gordo", 
+                  "Clay", "Black Hawk", "Cass", "Palo Alto", "Madison", 
+                  "Marion", "Ringgold", "Page", "Taylor", "Decatur", 
+                  "Wayne", "Lee", "Fremont", "Chickasaw", "Davis", 
+                  "Grundy", "Floyd", "Appanoose", "Van Buren", "Howard", 
+                  "Mitchell", "Scott", "Audubon", "Muscatine", "Mills", 
+                  "Jefferson", "Bremer", "Humboldt", "Henry", "Monroe", 
+                  "Wapello", "Ida", "Clarke", "Lucas", "Montgomery", 
+                  "Union", "Adams", "Des Moines", "Louisa", "Winnebago", 
+                  "Worth", "Osceola", "Emmet", "Dickinson"
+  ),
+  Size = c(972.72, 950.28, 872.83, 862.89, 778.54, 
+                  768.33, 730.81, 730.42, 721.01, 716.88, 
+                  716.26, 715.62, 714.19, 696.85, 694.91, 
+                  694.07, 689.87, 639.08, 636.04, 614.04, 
+                  608.30, 590.78, 590.62, 588.45, 587.65, 
+                  586.46, 584.93, 581.97, 580.42, 580.13, 
+                  579.44, 579.18, 577.76, 577.24, 576.91, 
+                  576.75, 575.62, 575.01, 574.91, 573.79, 
+                  573.03, 572.82, 572.50, 571.57, 571.02, 
+                  571.00, 570.86, 569.97, 569.83, 569.57, 
+                  569.44, 569.31, 569.27, 568.83, 568.31, 
+                  567.24, 565.77, 564.27, 563.84, 561.01, 
+                  554.53, 535.50, 534.94, 531.90, 531.88, 
+                  525.44, 517.52, 511.15, 504.38, 502.19, 
+                  501.86, 500.63, 497.29, 484.79, 473.25, 
+                  469.13, 458.09, 442.96, 437.47, 437.44, 
+                  435.51, 435.48, 434.35, 434.33, 433.71, 
+                  431.83, 431.51, 431.17, 430.59, 424.10, 
+                  423.64, 423.44, 416.12, 401.77, 400.49, 
+                  400.12, 398.68, 395.88, 380.61
+  )
+)
+
+# Merge the county size information with the original data frame
+ia_deer <- merge(ia_deer, county_size, by = "County", all.x = TRUE)
+
+# Add the ratio for total by the size
+ia_deer$Ratio <- ia_deer$Total / ia_deer$Size
+
+
+```
+
+## Combine
+
+Combine the data sets by binding the rows.
+
+```{r, echo=TRUE}
+combined_deer <- bind_rows(
+  mutate(ia_deer),
+  mutate(wi_deer),
+  mutate(mi_deer)
+)
+```
+
+# Michigan
+
+Bar plot for total harvest by county.
+
+This bar plot is going to be used later for the other two states as well. I decided to make a function so I can easily reproduce the plot with different data.
+
+```{r, echo=TRUE}
+# Create a ggplot with gradient fill and make it so it is interactive
+# The plot takes in the data and what you want the y axis to be from that data
+# enquo - evaluates as a quote in the environment
+plot_bar_sum <- function(data, y_value) {
+  p <- ggplot(data |> arrange({{y_value}}), 
+              aes(x = factor(County, levels = County), y = {{y_value}}, fill = {{y_value}})) +
+    geom_bar(stat = "identity", alpha = 0.7) +
+    scale_fill_gradient(low = "red", high = "green", guide = guide_legend(title = as_label(enquo(y_value)))) +
+    labs(title = paste("Deer Harvest Summary by County -", as_label(enquo(y_value))),
+         x = "County",
+         y = as_label(enquo(y_value))) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1,  size = 5))
+  
+  p <- ggplotly(p, tooltip = c("y"))
+  return(p)
+}
+
+
+# Running the function 
+plot_bar_sum(mi_deer, Total)
+```
+
+We can see it also works for different y-axis inputs
+
+```{r, echo=TRUE}
+plot_bar_sum(mi_deer, Antlerless)
+plot_bar_sum(mi_deer, Antlered)
+```
+
+Ratio of total deer harvest to the size of the county.
+
+```{r, echo=TRUE}
+ggplot(mi_deer, aes(x = Size, y = Ratio, fill = Ratio, label = County)) +
+  geom_point(shape = 21, color = "black", size = 3) +
+  geom_text_repel(box.padding = 0.5, point.padding = 0.5) +
+  labs(title = "Deer Harvested per sq mi vs Size of County",
+       x = "Size (sq mi)",
+       y = "Deer Harvested per sq mi") +
+  scale_fill_gradient(low = "red", high = "green") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Lollipop plot for the male to female harvest
+
+```{r, echo=TRUE}
+# Make interactive
+p2 <- ggplot(mi_deer, aes(x = reorder(County, Antlered), y = Antlered)) +
+  geom_segment(aes(xend = reorder(County, Antlered), yend = Antlerless),
+               color = "#694f43", size = .5) +
+  geom_point(aes(y = Antlered, text = Antlered),
+             color = "#91b2c1", size = 2) +
+  geom_point(aes(y = Antlerless, text = Antlerless),
+             color = "#f39ca1", size = 2) +
+  labs(title = "Lollipop Plot of Antlered and Antlerless by County",
+       x = "County",
+       y = "Total") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5))
+
+# Convert the ggplot to a plotly object
+p2 <- ggplotly(p2, tooltip = "text")
+
+# Display the interactive plot
+p2
+```
+
+## Upper Peninsula
+
+```{r, echo=TRUE}
+plot_bar_sum(deer_upper_peninsula, Total)
+```
+
+Same ratio plot but only using the upper peninsula counties.
+
+```{r, echo=TRUE}
+# For the UP
+ggplot(mi_deer |>filter(grepl(paste(upper_peninsula_counties, collapse = "|"), County)), 
+       aes(x = Size, y = Ratio, fill = Ratio, label = County)) +
+  geom_point(shape = 21, color = "black", size = 3) +
+  geom_text_repel(box.padding = 0.5, point.padding = 0.5) +
+  labs(title = "Deer Harvested per sq mi vs Size of County",
+       x = "Size (sq mi)",
+       y = "Deer Harvested per sq mi") +
+  scale_fill_gradient(low = "red", high = "green") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+# Wisconsin
+
+Bar plot for total harvest by county.
+
+```{r, echo=TRUE}
+# Run function for bar plot
+plot_bar_sum(wi_deer, Total)
+```
+
+Ratio of total deer harvest to the size of the county.
+
+```{r, echo=TRUE}
+ggplot(wi_deer, aes(x = Size, y = Ratio, fill = Ratio, label = County)) +
+  geom_point(shape = 21, color = "black", size = 3) +
+  geom_text_repel(box.padding = 0.5, point.padding = 0.5) +
+  labs(title = "Deer Harvested per sq mi vs Size of County",
+       x = "Size (sq mi)",
+       y = "Deer Harvested per sq mi") +
+  scale_fill_gradient(low = "red", high = "green") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Lollipop plot for the male to female harvest
+
+```{r, echo=TRUE}
+# Make interactive
+p2 <- ggplot(wi_deer, aes(x = reorder(County, Antlered), y = Antlered)) +
+  geom_segment(aes(xend = reorder(County, Antlered), yend = Antlerless),
+               color = "#694f43", size = .5) +
+  geom_point(aes(y = Antlered, text = Antlered),
+             color = "#91b2c1", size = 2) +
+  geom_point(aes(y = Antlerless, text = Antlerless),
+             color = "#f39ca1", size = 2) +
+  labs(title = "Lollipop Plot of Antlered and Antlerless by County",
+       x = "County",
+       y = "Total") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5))
+
+# Convert the ggplot to a plotly object
+p2 <- ggplotly(p2, tooltip = "text")
+
+# Display the interactive plot
+p2
+```
+
+# Iowa
+
+Bar plot for total harvest by county.
+
+```{r, echo=TRUE}
+# Run function for bar plot
+plot_bar_sum(ia_deer, Total)
+```
+
+Ratio of total deer harvest to the size of the county.
+
+```{r, echo=TRUE}
+ggplot(ia_deer, aes(x = Size, y = Ratio, fill = Ratio, label = County)) +
+  geom_point(shape = 21, color = "black", size = 3) +
+  geom_text_repel(box.padding = 0.5, point.padding = 0.5) +
+  labs(title = "Deer Harvested per sq mi vs Size of County",
+       x = "Size (sq mi)",
+       y = "Deer Harvested per sq mi") +
+  scale_fill_gradient(low = "red", high = "green") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Lollipop plot for the male to female harvest
+
+```{r, echo=TRUE}
+# Make interactive
+p2 <- ggplot(ia_deer, aes(x = reorder(County, Antlered), y = Antlered)) +
+  geom_segment(aes(xend = reorder(County, Antlered), yend = Antlerless),
+               color = "#694f43", size = .5) +
+  geom_point(aes(y = Antlered, text = Antlered),
+             color = "#91b2c1", size = 2) +
+  geom_point(aes(y = Antlerless, text = Antlerless),
+             color = "#f39ca1", size = 2) +
+  labs(title = "Lollipop Plot of Antlered and Antlerless by County",
+       x = "County",
+       y = "Total") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 5))
+
+# Convert the ggplot to a plotly object
+p2 <- ggplotly(p2, tooltip = "text")
+
+# Display the interactive plot
+p2
+```
+
+Now, I want to see if there is a correlation between the total turkey harvest and the total deer harvest by county.
+
+I combine the spring and fall turkey harvest to make a new variable.
+
+```{r, echo=TRUE}
+ia_deer <- ia_deer |> mutate(Total_Turkey = Fall_Turkey + Spring_Turkey)
+
+p <- ggplot(ia_deer, aes(x = Total, y = Total_Turkey, color = Total, text = County)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +  # Add a line of best fit
+  scale_color_gradient(low = "red", high = "green") +
+  labs(title = "Comparison of Total Deer Havrest vs Total Turkey Harvest by County",
+       x = "Total Deer",
+       y = "Total Turkey") +
+  theme_minimal()
+
+p <- ggplotly(p, tooltip = c("text"))
+
+p
+```
+
+To add a line of best fit geom_smooth would not work with the interactive plot. To work around this I manually calculated the line of best fit and then added that line to the plot.
+
+```{r, echo=TRUE}
+# Calculate linear regression 
+lm_model <- lm(Total_Turkey ~ Total, data = ia_deer)
+intercept <- coef(lm_model)[1]
+slope <- coef(lm_model)[2]
+
+# Create a ggplot scatter plot with color gradient and a manual line of best fit
+p <- ggplot(ia_deer, aes(x = Total, y = Total_Turkey, color = Total, text = County)) +
+  geom_point() +
+  geom_abline(intercept = intercept, slope = slope, linetype = "dashed", color = "grey") +
+  scale_color_gradient(low = "red", high = "green") +
+  labs(title = "Comparison of Total Deer Harvest vs Total Turkey Harvest by County",
+       x = "Total Deer",
+       y = "Total Turkey") +
+  theme_minimal()
+
+# Convert ggplot to interactive plotly plot
+p <- ggplotly(p, tooltip = c("text"))
+
+p
+```
+
+The idea of correlation between variables led me to make a heat map between all the numeric variables in the data set.
+
+```{r, echo=TRUE}
+# Select numerical columns for correlation matrix
+numerical_data <- ia_deer |>
+  select_if(is.numeric)
+
+# Calculate correlation matrix 
+cor_matrix <- cor(numerical_data)
+
+# Pivot the correlation matrix to long format
+cor_data <- cor_matrix |>
+  as.data.frame() |>
+  rownames_to_column(var = "variable1") |>
+  pivot_longer(cols = -variable1, names_to = "variable2", values_to = "correlation")
+
+
+# Create the heatmap
+p <- ggplot(cor_data, aes(variable1, variable2, fill = correlation)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "red", mid = "white", high = "green", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Correlation Heatmap")
+
+p
+```
+
+# All State Plots
+
+Some counties share names between states and causes problems for the plotting when using some sort of function by county. To get around this I added a variable called County_State which combines the County and State name by an `_` symbol.
+
+The plots below give us all the states combined. It is interesting to note that it looks like Wisconsin wins in the most counties with the highest ratios and it is also noted to having the most Boone and Crockett bucks. <https://www.boone-crockett.org/boone-and-crocketts-top-whitetail-states>. Iowa comes in third on the Boone and Crockett list while Michigan does not even make the top ten. However, here we can see that the ratio of deer harvest to the size of the county does not indicate anything of their Boone and Crockett potential as Wisconsin falls on the higher side of Michigan and Iowa on the lower side.
+
+There are no counties in Iowa that have a deer harvest per square mile of over 7.5. This may be due to the stricter harvest regulations Iowa has put into place in recent years. Even if you are a landowner in Iowa but it is not your main residence you still have to draw a tag as an out-of-state hunter and depending on which area you want to hunt it can take upwards of 3-5 years to draw that tag. Deer tags in Wisconsin and Michigan can be purchased over the counter (no draw necessary) which could help explain how they harvest more deer than Iowa as well.
+
+```{r, echo=TRUE}
+# We see that some states have the same named counties
+combined_deer |>
+  group_by(County) |>
+  filter(n() > 1) |> print(n=47)
+
+# having to make new variable because counties named the same between states
+combined_deer_cat <- combined_deer |>
+  mutate(County_State = paste(County, State, sep = "_")) 
+```
+
+Using that combined data we make a bar graph by county to illustrate total harvest numbers.
+
+```{r, echo=TRUE}
+p <- ggplot(combined_deer_cat |> arrange(Total), aes(x = factor(County_State, levels = County_State), 
+                                                     y = Total, fill = State, text = County_State)) +
+  geom_bar(stat = "identity", alpha = 0.7) +
+  labs(title = "Deer Harvest Summary by County",
+       x = "County",
+       y = "Total") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank()) 
+
+p <- ggplotly(p, tooltip = c("y", "text"))
+
+p
+```
+
+This plot also creates a bar plot but instead the y axis represents the ratio(total/area).
+
+```{r, echo=TRUE}
+p2 <- ggplot(combined_deer_cat |> arrange(Ratio), aes(x = factor(County_State, levels = County_State), 
+                                                      y = Ratio, fill = State, text = County_State)) +
+  geom_bar(stat = "identity", alpha = 0.7) +
+  labs(title = "Deer Harvest Ratio by County",
+       x = "County",
+       y = "Ratio (Total/Size(sq miles))") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank()) 
+
+p2 <- ggplotly(p2, tooltip = c("y", "text"))
+
+p2
+```
+
+Plot of ratio (deer harvested per sq mile) versus size by county.
+
+```{r, echo=TRUE}
+p <- ggplot(combined_deer_cat, aes(x = Size, y = Ratio, fill = State, 
+                                   text = County_State, size = Size)) +
+  geom_point(shape = 21, color = "black", alpha = .7) +
+  labs(title = "Deer Harvested per sq mi vs Size of County",
+       x = "Size (sq mi)",
+       y = "Deer Harvested per sq mi")  +
+  theme_minimal()
+
+p <- ggplotly(p, tooltip = c("text"))
+
+p
+```
+
+Box plot to look at summary of ratio for each state.
+
+```{r, echo=TRUE}
+combined_deer_cat |>
+  ggplot(aes(x = State, y = Ratio, fill = State)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("red", "yellow", "green")) +
+  labs(title = "Boxplot of Ratio by State",
+       x = "State",
+       y = "Ratio")
+```
+
+Here we see that Michigan and Wisconsin come close while Wisconsin's ranges are slightly more extreme. Iowa falls behind on the two in terms on range and median for the ratio indicating a stricter management plan.
+
+# Shiny App
+
+```{r, echo=TRUE}
+
+  titlePanel("Deer Harvest Summary")
+  sidebarLayout(
+    sidebarPanel(
+      selectizeInput("countySelect", "Select County", choices = c("All_IA", "All_WI", "All_MI", unique(combined_deer_cat$County_State)), multiple = TRUE),
+      selectInput("yVariable", "Select Y Variable", choices = c("Total", "Antlered", "Antlerless", "Ratio"))
+    ),
+    mainPanel(
+      # Output plot
+      plotlyOutput("deerPlot"),
+    )
+  )
+```
+
+## Define server
+
+```{r, echo=TRUE}
+#| context: server
+library(tidyverse)
+library(ggplot2)
+library(plotly) # For interactive part
+library(ggrepel) # For overlapping of label/text
+library(readxl)
+library(rmarkdown)
+library(shiny)
+
+# For reading the Michigan deer data
+# https://www.mdnr-elicense.com/HarvestReportSummary 
+mi_deer <- read.csv("DeerHarvestSummaryReport.csv")
+
+
+# Removes the commas from the values, before on values under 1,000 were working
+# mi_deer$Total <- as.numeric(gsub(",", "", mi_deer$Total))
+# mi_deer$Antlered <- as.numeric(gsub(",", "", mi_deer$Antlered))
+# mi_deer$Antlerless <- as.numeric(gsub(",", "", mi_deer$Antlerless))
+
+# do a function example for the code above 
+rccn <- function(data_frame, columns) {
+  for (col_name in columns) {
+    data_frame[[col_name]] <- as.numeric(gsub(",", "", data_frame[[col_name]]))
+  }
+  return(data_frame)
+}
+
+# Run the function
+mi_deer <- rccn(mi_deer, c("Total", "Antlered", "Antlerless"))
+
+
+
+
+
+# For upper peninsula only
+upper_peninsula_counties <- c("Alger", "Baraga", "Chippewa", "Delta", "Dickinson", 
+                              "Gogebic", "Houghton", "Iron", "Keweenaw", "Luce", 
+                              "Mackinac", "Marquette", "Menominee", "Ontonagon", "Schoolcraft")
+
+# Filter the data
+deer_upper_peninsula <- mi_deer[grepl(paste(upper_peninsula_counties, collapse = "|"), mi_deer$County), ]
+
+
+# http://www.usa.com/rank/michigan-state--land-area--county-rank.htm
+# Add county size to the dataset
+# List of sizes corresponding to each county
+# Size is in sq miles
+sizes <- c(1808.40, 1558.42, 1311.22, 1171.36, 1171.09, 1166.15, 1101.85, 1044.08, 1021.57, 1009.10,
+           962.57, 915.07, 899.08, 898.26, 867.66, 846.95, 835.71, 825.23, 813.20, 803.13,
+           800.11, 761.40, 749.55, 721.17, 715.26, 706.23, 705.96, 705.40, 701.67, 674.58,
+           658.72, 643.01, 636.98, 612.08, 598.13, 575.17, 572.68, 571.86, 571.30, 568.46,
+           567.75, 567.37, 566.41, 566.39, 565.73, 565.25, 565.00, 564.73, 564.31, 563.49,
+           563.47, 563.15, 562.79, 561.66, 559.86, 556.28, 556.12, 555.07, 553.09, 549.39,
+           549.10, 546.66, 542.15, 540.11, 530.67, 519.64, 516.25, 514.97, 512.07, 501.78,
+           500.59, 499.25, 495.07, 490.06, 479.22, 475.70, 467.49, 464.33, 442.30, 416.34,
+           363.19, 347.17, 319.70)
+
+# Create a named vector with County as names
+sizes_vector <- setNames(sizes, c("Marquette", "Chippewa", "Ontonagon", "Schoolcraft", "Delta",
+                                  "Iron", "Gogebic", "Menominee", "Mackinac", "Houghton",
+                                  "Sanilac", "Alger", "Luce", "Baraga", "Oakland", "Kent",
+                                  "Huron", "Allegan", "Newaygo", "Tuscola", "Saginaw",
+                                  "Dickinson", "Lenawee", "St. Clair", "Cheboygan",
+                                  "Calhoun", "Washtenaw", "Montcalm", "Jackson", "Alcona",
+                                  "Presque Isle", "Lapeer", "Genesee", "Wayne", "Van Buren",
+                                  "Hillsdale", "Eaton", "Isabella", "Alpena", "Ionia",
+                                  "Gratiot", "Berrien", "Lake", "Clinton", "Osceola", "Oscoda",
+                                  "Livingston", "Wexford", "Missaukee", "Clare", "Ogemaw",
+                                  "Ottawa", "Kalamazoo", "Kalkaska", "Crawford", "Ingham",
+                                  "Mecosta", "Barry", "Monroe", "Iosco", "Montmorency", "Manistee",
+                                  "Keweenaw", "Shiawassee", "Roscommon", "Midland", "Otsego",
+                                  "Oceana", "Branch", "Gladwin", "St. Joseph", "Muskegon",
+                                  "Mason", "Cass", "Macomb", "Antrim", "Emmet", "Grand Traverse",
+                                  "Bay", "Charlevoix", "Arenac", "Leelanau", "Benzie"))
+
+# Add the "Size" column to the deer data frame
+mi_deer$Size <- sizes_vector[mi_deer$County]
+
+
+# Add a new column "State" with the value "Mi" to mi_deer using mutate
+mi_deer <- mi_deer |> mutate(State = "MI")
+
+
+# Calculate the ratio of Total to Size
+# Same thing as mutate just using base R
+mi_deer$Ratio <- mi_deer$Total / mi_deer$Size
+
+# Wisconsin deer data reading
+file_path <- "AllKillsCty2022RegionalGrouping.xlsx"
+
+wi_deer <- read_excel(file_path, sheet = "AllKillsUnitWithTribal")
+
+
+# Select the first column and the last four columns
+wi_deer <- wi_deer[, c(1, (ncol(wi_deer) - 3):ncol(wi_deer))]
+
+
+# Specify the desired column order and names
+desired_order_and_names <- c("County", "Antlered", "Antlerless", "Unknowns", "Total")
+
+# Rename variables
+colnames(wi_deer) <- desired_order_and_names
+
+
+# Get rid of unwanted rows
+# "Apostle Islands," "Bad River," "Lac Courte Oreilles," "Lac du Flambeau," "MCCoy," "Madeline Island," "Red Cliff," 
+wi_deer <- wi_deer |>
+  filter(!(is.na(County) | County %in% c("County", "Unknown", "Apostle Islands", "Bad River", 
+                                         "Lac Courte Oreilles","Lac du Flambeau", "MCCoy", "Madeline Island", "Red Cliff")))
+
+# Convert chr columns to numeric dbl that are actually numeric
+wi_deer <- wi_deer |>
+  mutate_at(vars(Antlered, Antlerless, Unknowns, Total), as.numeric)
+
+
+# Group by the "County" column and summarize other columns by summing
+wi_deer <- wi_deer |>
+  group_by(County) |>
+  summarize(
+    Antlered = sum(Antlered, na.rm = TRUE),
+    Antlerless = sum(Antlerless, na.rm = TRUE),
+    Unknowns = sum(Unknowns, na.rm = TRUE),
+    Total = sum(Total, na.rm = TRUE)
+  )
+
+
+# http://www.usa.com/rank/wisconsin-state--land-area--county-rank.htm 
+county_sizes <- data.frame(
+  County = c("Marathon", "Bayfield", "Marinette", "Douglas", "Sawyer", "Price", "Clark", "Dane", "Grant", 
+             "Oneida", "Ashland", "Forest", "Chippewa", "Oconto", "Jackson", "Taylor", "Polk", "Rusk", 
+             "Monroe", "Shawano", "Lincoln", "Dodge", "Langlade", "Barron", "Vilas", "Dunn", "Sauk", 
+             "Burnett", "Portage", "Washburn", "Wood", "Vernon", "Juneau", "Columbia", "Iowa", "Iron", 
+             "Waupaca", "Trempealeau", "ST CROIX", "Fond Du Lac", "Rock", "Buffalo", "Adams", 
+             "Eau Claire", "Outagamie", "Lafayette", "Waushara", "Manitowoc", "Richland", "Green", 
+             "Pierce", "Crawford", "Jefferson", "Walworth", "Waukesha", "Brown", "Sheboygan", "Florence", 
+             "Door", "Marquette", "La Crosse", "Winnebago", "Washington", "Menominee", "Green Lake", 
+             "Kewaunee", "Racine", "Calumet", "Kenosha", "Milwaukee", "Ozaukee", "Pepin"),
+  Size = c(1544.98, 
+           1477.86, 
+           1399.35, 1304.14, 
+           1257.3, 1254.37, 1209.81, 
+           1197.24, 1146.85, 1112.97, 
+           1045.03, 1014.07, 1008.37, 
+           997.99, 987.72, 974.88, 913.96, 913.58, 900.77, 
+           893.06, 878.97, 875.62, 870.64, 862.71, 856.6, 850.1, 830.9, 821.85, 800.68, 
+           797.11, 793.12, 791.58, 766.92, 765.53, 762.58, 758.17, 747.71, 732.96, 722.33, 719.55, 718.14, 
+           671.63, 645.65, 637.98, 637.52, 633.59, 626.15, 
+           589.08, 586.15, 583.96, 573.75, 570.66, 556.47, 555.13, 549.57, 533.64, 511.27, 
+           488.19, 481.98, 455.60, 451.69, 434.49, 430.70, 
+           357.61, 349.44, 342.52, 332.50, 318.24, 
+           271.99, 241.40, 233.08, 231.98)
+)
+
+# Combine the size data with the existing data frame
+# Convert the "County" column in both datasets to only capital for first letter
+wi_deer$County <- tolower(wi_deer$County)
+wi_deer$County <- paste0(toupper(substring(wi_deer$County, 1, 1)), substring(wi_deer$County, 2))
+
+county_sizes$County <- tolower(county_sizes$County)
+county_sizes$County <- paste0(toupper(substring(county_sizes$County, 1, 1)), substring(county_sizes$County, 2))
+
+# Merge wi_deer with county_sizes based on the County column
+wi_deer <- merge(wi_deer, county_sizes, by = "County", all.x = TRUE)
+
+
+# Add a new column "State" with the value "WI" to wi_deer using mutate
+wi_deer <- wi_deer |> mutate(State = "WI")
+
+
+# Add the ratio for total by the size (Same thing as mutate)
+wi_deer$Ratio <- wi_deer$Total / wi_deer$Size
+
+
+# Get rid of unknown column
+wi_deer <- wi_deer |>
+  select(-Unknowns)
+
+
+# Iowa deer data reading
+# https://gooutdoorsiowa.com/RealTimeHarvestReport.aspx
+
+raw_data <- "01,Adair,512,34,462,89,10,1107,7,68
+02,Adams,437,17,412,60,5,931,1,82
+03,Allamakee,1805,102,1340,246,51,3544,12,433
+04,Appanoose,1068,77,867,163,29,2204,15,341
+05,Audubon,100,4,194,12,6,316,2,51
+06,Benton,448,13,427,89,15,992,8,79
+07,Black Hawk,306,17,318,66,7,714,5,116
+08,Boone,544,33,558,103,12,1250,7,129
+09,Bremer,436,25,436,95,3,995,13,155
+10,Buchanan,425,20,392,104,6,947,4,148
+11,Buena Vista,68,3,154,11,2,238,2,38
+12,Butler,467,17,489,82,14,1069,5,124
+13,Calhoun,25,1,115,9,1,151,0,8
+14,Carroll,80,5,172,20,3,280,5,31
+15,Cass,216,9,306,29,10,570,4,42
+16,Cedar,511,19,472,87,6,1095,6,55
+17,Cerro Gordo,221,10,276,36,6,549,5,119
+18,Cherokee,203,3,273,23,4,506,3,92
+19,Chickasaw,412,21,432,91,14,970,13,140
+20,Clarke,926,60,649,124,16,1775,10,254
+21,Clay,190,9,280,24,6,509,4,52
+22,Clayton,2201,90,1469,318,59,4137,19,424
+23,Clinton,487,27,549,100,9,1172,3,86
+24,Crawford,105,5,235,20,1,366,0,63
+25,Dallas,778,37,609,140,15,1579,6,113
+26,Davis,942,75,706,190,17,1930,13,164
+27,Decatur,989,44,776,103,16,1928,8,254
+28,Delaware,809,54,561,135,19,1578,11,199
+29,Des Moines,683,25,589,104,6,1407,0,83
+30,Dickinson,106,6,183,25,6,326,7,33
+31,Dubuque,1115,71,765,233,9,2193,20,234
+32,Emmet,82,3,159,15,1,260,5,26
+33,Fayette,1026,38,696,191,27,1978,5,280
+34,Floyd,413,28,399,72,5,917,15,172
+35,Franklin,200,2,262,44,6,514,3,35
+36,Fremont,125,3,255,21,2,406,3,95
+37,Greene,175,5,258,40,7,485,2,43
+38,Grundy,43,1,99,3,1,147,0,2
+39,Guthrie,1171,63,778,193,27,2232,4,216
+40,Hamilton,133,4,225,24,5,391,1,25
+41,Hancock,150,5,172,19,1,347,1,20
+42,Hardin,386,14,411,43,11,865,1,83
+43,Harrison,365,12,405,54,4,840,8,277
+44,Henry,679,43,614,135,15,1486,2,81
+45,Howard,355,29,272,75,7,738,9,79
+46,Humboldt,69,6,163,13,3,254,1,15
+47,Ida,39,2,93,10,0,144,0,17
+48,Iowa,585,23,704,91,14,1417,4,117
+49,Jackson,1046,57,889,225,28,2245,15,351
+50,Jasper,336,14,452,68,6,876,10,153
+51,Jefferson,866,41,602,158,8,1675,0,64
+52,Johnson,865,45,667,142,17,1736,11,114
+53,Jones,888,34,704,143,11,1780,6,226
+54,Keokuk,516,21,564,76,9,1186,4,68
+55,Kossuth,112,8,250,18,2,390,2,30
+56,Lee,1070,54,873,171,13,2181,3,166
+57,Linn,921,35,794,169,22,1941,16,212
+58,Louisa,543,26,549,121,9,1248,1,68
+59,Lucas,969,43,791,144,19,1966,12,260
+60,Lyon,133,8,205,16,4,366,1,35
+61,Madison,1630,68,1008,194,36,2936,16,254
+62,Mahaska,430,19,436,82,5,972,6,117
+63,Marion,899,44,809,177,21,1950,14,241
+64,Marshall,239,6,303,40,7,595,3,73
+65,Mills,136,7,237,23,2,405,6,75
+66,Mitchell,304,17,387,51,3,762,13,124
+67,Monona,307,14,338,35,3,697,1,166
+68,Monroe,1206,68,779,167,37,2257,7,225
+69,Montgomery,231,4,270,32,1,538,0,45
+70,Muscatine,572,27,531,133,6,1269,6,93
+71,Obrien,99,2,140,11,2,254,0,31
+72,Osceola,41,1,85,5,2,134,0,3
+73,Page,224,7,302,29,1,563,4,49
+74,Palo Alto,133,2,204,17,4,360,2,15
+75,Plymouth,111,8,284,23,6,432,6,150
+76,Pocahontas,51,1,141,8,1,202,0,5
+77,Polk,564,33,344,86,10,1037,6,120
+78,Pottawattamie,279,9,380,46,5,719,13,207
+79,Poweshiek,329,15,428,56,5,833,6,69
+80,Ringgold,784,45,685,118,16,1648,4,129
+81,Sac,114,8,222,14,3,361,0,28
+82,Scott,342,21,310,50,10,733,4,22
+83,Shelby,79,1,201,17,4,302,8,40
+84,Sioux,84,8,170,19,1,282,3,49
+85,Story,191,12,291,35,2,531,4,41
+86,Tama,659,32,707,101,7,1506,7,126
+87,Taylor,860,45,739,92,10,1746,4,97
+88,Union,717,35,516,108,10,1386,2,122
+89,Van Buren,1456,84,1083,246,29,2898,3,213
+90,Wapello,722,32,548,110,22,1434,4,118
+91,Warren,1124,39,1022,203,17,2405,18,341
+92,Washington,897,61,713,179,12,1862,0,69
+93,Wayne,1080,55,773,138,20,2066,10,258
+94,Webster,360,21,496,60,8,945,7,86
+95,Winnebago,106,4,175,23,4,312,6,43
+96,Winneshiek,1335,99,815,214,39,2502,4,246
+97,Woodbury,251,15,343,38,8,655,10,201
+98,Worth,130,5,237,26,7,405,6,92
+99,Wright,107,7,243,24,4,385,2,23
+"
+
+# Remove leading and trailing whitespace
+raw_data <- trimws(raw_data)
+
+# Split the raw data into lines
+lines <- strsplit(raw_data, "\n")[[1]]
+
+# Split each line into individual elements
+elements <- strsplit(lines, ",")
+
+# Convert data to columns
+ia_deer <- data.frame(
+  County_ID = as.character(sapply(elements, `[`, 1)),
+  County = as.character(sapply(elements, `[`, 2)),
+  Antlerless = as.numeric(sapply(elements, `[`, 3)),
+  Doe_Fawn = as.numeric(sapply(elements, `[`, 4)),
+  Antlered = as.numeric(sapply(elements, `[`, 5)),
+  Button_Bucks = as.numeric(sapply(elements, `[`, 6)),
+  Shed_Antler_Bucks = as.numeric(sapply(elements, `[`, 7)),
+  Total = as.numeric(sapply(elements, `[`, 8)),
+  Fall_Turkey = as.numeric(sapply(elements, `[`, 9)),
+  Spring_Turkey = as.numeric(sapply(elements, `[`, 10))
+)
+
+
+
+# Change sub groups of antlered and antlerless and combine
+ia_deer <- ia_deer |>
+  mutate(Antlered = Antlered + Button_Bucks + Shed_Antler_Bucks) |>
+  select(-Button_Bucks, -Shed_Antler_Bucks)
+
+ia_deer <- ia_deer |>
+  mutate(Antlerless = Antlerless + Doe_Fawn) |>
+  select(-Doe_Fawn)
+
+
+# Add a new column "State" with the value "IA" to wi_deer using mutate
+ia_deer <- ia_deer |> mutate(State = "IA")
+
+# Making county sizes
+# http://www.usa.com/rank/iowa-state--land-area--county-rank.htm
+county_size <- tibble(
+  County = c("Kossuth", "Pottawattamie", "Woodbury", "Plymouth", "Clayton", 
+                  "Sioux", "Fayette", "Jasper", "Tama", "Linn", 
+                  "Benton", "Webster", "Crawford", "Harrison", "Clinton", 
+                  "Monona", "Winneshiek", "Allamakee", "Jackson", "Johnson", 
+                  "Dubuque", "Shelby", "Guthrie", "Dallas", "Lyon", 
+                  "Iowa", "Poweshiek", "Franklin", "Wright", "Butler", 
+                  "Cedar", "Keokuk", "Delaware", "Pocahontas", "Cherokee", 
+                  "Hamilton", "Jones", "Sac", "Buena Vista", "Polk", 
+                  "Obrien", "Story", "Marshall", "Boone", "Buchanan", 
+                  "Hancock", "Mahaska", "Calhoun", "Warren", "Greene", 
+                  "Carroll", "Hardin", "Adair", "Washington", "Cerro Gordo", 
+                  "Clay", "Black Hawk", "Cass", "Palo Alto", "Madison", 
+                  "Marion", "Ringgold", "Page", "Taylor", "Decatur", 
+                  "Wayne", "Lee", "Fremont", "Chickasaw", "Davis", 
+                  "Grundy", "Floyd", "Appanoose", "Van Buren", "Howard", 
+                  "Mitchell", "Scott", "Audubon", "Muscatine", "Mills", 
+                  "Jefferson", "Bremer", "Humboldt", "Henry", "Monroe", 
+                  "Wapello", "Ida", "Clarke", "Lucas", "Montgomery", 
+                  "Union", "Adams", "Des Moines", "Louisa", "Winnebago", 
+                  "Worth", "Osceola", "Emmet", "Dickinson"
+  ),
+  Size = c(972.72, 950.28, 872.83, 862.89, 778.54, 
+                  768.33, 730.81, 730.42, 721.01, 716.88, 
+                  716.26, 715.62, 714.19, 696.85, 694.91, 
+                  694.07, 689.87, 639.08, 636.04, 614.04, 
+                  608.30, 590.78, 590.62, 588.45, 587.65, 
+                  586.46, 584.93, 581.97, 580.42, 580.13, 
+                  579.44, 579.18, 577.76, 577.24, 576.91, 
+                  576.75, 575.62, 575.01, 574.91, 573.79, 
+                  573.03, 572.82, 572.50, 571.57, 571.02, 
+                  571.00, 570.86, 569.97, 569.83, 569.57, 
+                  569.44, 569.31, 569.27, 568.83, 568.31, 
+                  567.24, 565.77, 564.27, 563.84, 561.01, 
+                  554.53, 535.50, 534.94, 531.90, 531.88, 
+                  525.44, 517.52, 511.15, 504.38, 502.19, 
+                  501.86, 500.63, 497.29, 484.79, 473.25, 
+                  469.13, 458.09, 442.96, 437.47, 437.44, 
+                  435.51, 435.48, 434.35, 434.33, 433.71, 
+                  431.83, 431.51, 431.17, 430.59, 424.10, 
+                  423.64, 423.44, 416.12, 401.77, 400.49, 
+                  400.12, 398.68, 395.88, 380.61
+  )
+)
+
+# Merge the county size information with the original data frame
+ia_deer <- merge(ia_deer, county_size, by = "County", all.x = TRUE)
+
+# Add the ratio for total by the size
+ia_deer$Ratio <- ia_deer$Total / ia_deer$Size
+
+
+combined_deer <- bind_rows(
+  mutate(ia_deer),
+  mutate(wi_deer),
+  mutate(mi_deer)
+)
+
+
+# having to make new variable because counties named the same between states
+combined_deer_cat <- combined_deer |>
+  mutate(County_State = paste(County, State, sep = "_")) 
+
+  
+  # Reactive function for filtering data based on selected counties and y-variable
+  filtered_data <- reactive({
+    selected_data <- combined_deer_cat |>
+      filter(case_when(
+        "All_IA" %in% input$countySelect ~ (State == "IA" | County_State %in% input$countySelect),
+        "All_WI" %in% input$countySelect ~ (State == "WI" | County_State %in% input$countySelect),
+        "All_MI" %in% input$countySelect ~ (State == "MI" | County_State %in% input$countySelect),
+        TRUE ~ County_State %in% input$countySelect
+      )) |>
+      arrange(!!sym(input$yVariable))
+    
+    switch(input$yVariable,
+           "Total" = selected_data,
+           "Antlered" = selected_data |> select(State, County_State, Antlered),
+           "Antlerless" = selected_data |> select(State, County_State, Antlerless),
+           "Ratio" = selected_data |> select(State, County_State, Ratio)
+    )
+  })
+  
+  # Plot function
+  output$deerPlot <- renderPlotly({
+    p <- ggplot(filtered_data(), aes(x = reorder(County_State, !!sym(input$yVariable)), y = !!sym(input$yVariable), fill = !!sym(input$yVariable))) +
+      geom_bar(stat = "identity", alpha = 0.7) +
+      labs(title = paste("Deer Harvest Summary by County"),
+           x = "County",
+           y = input$yVariable) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_fill_gradient(low = "red", high = "green", guide = guide_legend(title = input$yVariable))
+    
+    ggplotly(p, tooltip = c("y"))
+  })
+  
+  
+
+
+```
+
+Reactive function for filtering data based on selected counties and y-variable
+```{echo=TRUE}
+filtered_data <- reactive({
+    selected_data <- combined_deer_cat |>
+      filter(case_when(
+        "All_IA" %in% input$countySelect ~ (State == "IA" | County_State %in% input$countySelect),
+        "All_WI" %in% input$countySelect ~ (State == "WI" | County_State %in% input$countySelect),
+        "All_MI" %in% input$countySelect ~ (State == "MI" | County_State %in% input$countySelect),
+        TRUE ~ County_State %in% input$countySelect
+      )) |>
+      arrange(!!sym(input$yVariable))
+    
+    switch(input$yVariable,
+           "Total" = selected_data,
+           "Antlered" = selected_data |> select(State, County_State, Antlered),
+           "Antlerless" = selected_data |> select(State, County_State, Antlerless),
+           "Ratio" = selected_data |> select(State, County_State, Ratio)
+    )
+  })
+  
+  # Plot function
+  output$deerPlot <- renderPlotly({  
+    p <- ggplot(filtered_data(), aes(x = reorder(County_State, !!sym(input$yVariable)), y = !!sym(input$yVariable), fill = !!sym(input$yVariable))) +
+      geom_bar(stat = "identity", alpha = 0.7) +
+      labs(title = paste("Deer Harvest Summary by County"),
+           x = "County",
+           y = input$yVariable) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_fill_gradient(low = "red", high = "green", guide = guide_legend(title = input$yVariable))
+    
+    ggplotly(p, tooltip = c("y"))
+  })
+```
+
+
+# Conclusion
+
+From the data visualization above we can see that Michigan (#14 on the Boone and Crockett list) often splits between Wisconsin (#1 on the Boone and Crockett list) which often had the highest values on the graphs and Iowa (#3 on the Boone and Crockett list) which often had the lower values on the graphs. This indicates that going off harvest data alone it is hard to predict hunting and deer quality.
+
+Further studies could look at implementing data for individual county: Boone and Crockett lists by years, public land acreage, timberland versus farmland acreage, tags per sq mile, and multiple year data for each state/county rather than just for 2022 to help look at trends and outcomes of past practice implementation.
