@@ -1232,7 +1232,8 @@ combined_deer_cat <- combined_deer |>
 ```
 
 Reactive function for filtering data based on selected counties and y-variable
-```{echo=TRUE}
+
+``` {echo="TRUE"}
 filtered_data <- reactive({
     selected_data <- combined_deer_cat |>
       filter(case_when(
@@ -1265,7 +1266,6 @@ filtered_data <- reactive({
     ggplotly(p, tooltip = c("y"))
   })
 ```
-
 
 # Conclusion
 
